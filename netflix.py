@@ -23,6 +23,11 @@ from collections import defaultdict
 
 from pyspark.sql import SparkSession
 
+def findGivenUser(userMovies, foundUserMovie, givenUser):
+    if foundUserMovie[0] == givenUser:
+      userMovies.append(foundUserMovie[1]+"-"+foundUserMovie[2])
+    return (foundUserMovie[1]+"-"+foundUserMovie[2], foundUserMovie[0])
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
         print("Usage: netflix <file> <userID> <output>", file=sys.stderr)
@@ -33,26 +38,32 @@ if __name__ == "__main__":
         .appName("NetflixRecommendation")\
         .getOrCreate()
 
-    lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])
-    movieRatingsToUsers = lines.map(lambda x: (x[1]+"-"+x[2], x[0])) \
+    target = open(sys.argv[3], 'w')
+    target.truncate()
+    userMovies = []
+    givenUser = sys.argv[2]
+    lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0].split())
+    movieRatingsToUsers = lines.map(lambda x: findGivenUser(userMovies, x, givenUser)) \
                   .groupByKey().mapValues(list)
-
-    usersToRatings = lines.map(lambda x: (x[0], x[1]+"-"+x[2])) \
-                  .groupByKey().mapValues(list)
-    userMovies = usersToRatings.lookup(sys.argv[2])
 
     similar = defaultdict(int)
     for movie in userMovies:
-      usersThatRatedSame = movieRatingsToUsers.lookup(movie)
+      usersThatRatedSame = movieRatingsToUsers.lookup(movie)[0]
       for user in usersThatRatedSame:
         similar[user] += 1
 
-    similar = similar.items()
-    similar.sort(reverse=True)
+    similarItems = similar.items()
+    similarItems.sort(key=lambda x: -x[1])
 
-    target = open(sys.argv[3], 'w')
-    for similarUser in similar:
-      target.write(similarUser[0])
+    target.write('\n')
+    for m in userMovies:
+      target.write(str(m))
+      target.write('\n')
+
+    target.write('\n')
+    for similarUser in similarItems:
+      target.write(str(similarUser))
       target.write("\n")
 
     spark.stop()
+    
