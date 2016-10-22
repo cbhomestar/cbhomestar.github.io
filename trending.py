@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one or more
 # contributor license agreements.  See the NOTICE file distributed with
 # this work for additional information regarding copyright ownership.
@@ -14,8 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 from __future__ import print_function
+
+import  os
+#check if pyspark env vars are set and then reset to required or delete.   
+del os.environ['PYSPARK_SUBMIT_ARGS']
 
 import sys
 from operator import add
@@ -23,30 +25,32 @@ from collections import defaultdict
 
 from pyspark.sql import SparkSession
 
-def findGivenUser(userMovies, foundUserMovie, givenUser):
-    if foundUserMovie[0] == givenUser:
-      userMovies.append(foundUserMovie[1]+"-"+foundUserMovie[2])
-    return (foundUserMovie[1]+"-"+foundUserMovie[2], foundUserMovie[0])
+def findUsageTrend(counts):
+  trend = 0
+  if len(counts) == 1:
+    return 0
+  for i in xrange(1, len(counts)):
+    trend += int(counts[i]) - int(counts[i-1])
+
+  return trend
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: netflix <file> <userID> <output>", file=sys.stderr)
-        exit(-1)
+    if len(sys.argv) != 3:
+      print("Usage: trending <file> <output>", file=sys.stderr)
+      exit(-1)
 
     spark = SparkSession\
         .builder\
-        .appName("NetflixRecommendation")\
+        .appName("DisappearingWords")\
         .getOrCreate()
 
-    target = open(sys.argv[3], 'w')
-    target.truncate()
-    userMovies = []
-    givenUser = sys.argv[2]
-    lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0].split())
-    movieRatingsToUsers = lines.map(lambda x: findGivenUser(userMovies, x, givenUser)) \
-                  .groupByKey().mapValues(list)
+    lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])
+    wordCount = lines.map(lambda x: (x.split()[0], x.split()[2])) \
+      .groupByKey().mapValues(list).map(lambda x: (x[0], findUsageTrend(x[1]))) \
+      .sortBy(lambda x: x[1])
 
-    similar = defaultdict(int)
+    wordCount.saveAsTextFile(sys.argv[2])
+    '''similar = defaultdict(int)
     for movie in userMovies:
       usersThatRatedSame = movieRatingsToUsers.lookup(movie)[0]
       for user in usersThatRatedSame:
@@ -54,16 +58,8 @@ if __name__ == "__main__":
 
     similarItems = similar.items()
     similarItems.sort(key=lambda x: -x[1])
-
-    target.write('\n')
-    for m in userMovies:
-      target.write(str(m))
-      target.write('\n')
-
-    target.write('\n')
-    for similarUser in similarItems:
-      target.write(str(similarUser))
-      target.write("\n")
-
-    spark.stop()
     
+    target.write('check 1 2 3')
+    '''
+
+    spark.stop()                                             
