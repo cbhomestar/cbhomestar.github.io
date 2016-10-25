@@ -15,24 +15,15 @@
 #
 from __future__ import print_function
 
-import  os
-#check if pyspark env vars are set and then reset to required or delete.   
-del os.environ['PYSPARK_SUBMIT_ARGS']
-
 import sys
 from operator import add
 from collections import defaultdict
 
 from pyspark.sql import SparkSession
 
-def findUsageTrend(counts):
-  trend = 0
-  if len(counts) == 1:
-    return 0
-  for i in xrange(1, len(counts)):
-    trend += int(counts[i]) - int(counts[i-1])
-
-  return trend
+def decade(year):
+  year = year[:-1] + "0"
+  return year
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -45,9 +36,9 @@ if __name__ == "__main__":
         .getOrCreate()
 
     lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])
-    wordCount = lines.map(lambda x: (x.split()[0], x.split()[2])) \
-      .groupByKey().mapValues(list).map(lambda x: (x[0], findUsageTrend(x[1]))) \
-      .sortBy(lambda x: x[1])
+    wordCount = lines.map(lambda x: (x.split()[2], (x.split()[0], x.split()[1]))) \
+      .sortBy(lambda x: -int(x[0])).map(lambda x: (decade(x[1][1]), (x[1][0], x[0]))) \
+      .groupByKey().mapValues(list).map(lambda x: (x[0], x[1][0]))
 
     wordCount.saveAsTextFile(sys.argv[2])
     '''similar = defaultdict(int)
