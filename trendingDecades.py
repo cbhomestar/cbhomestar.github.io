@@ -37,8 +37,9 @@ if __name__ == "__main__":
 
     lines = spark.read.text(sys.argv[1]).rdd.map(lambda r: r[0])
     wordCount = lines.map(lambda x: (x.split()[2], (x.split()[0], x.split()[1]))) \
-      .sortBy(lambda x: -int(x[0])).map(lambda x: (decade(x[1][1]), (x[1][0], x[0]))) \
-      .groupByKey().mapValues(list).map(lambda x: (x[0], x[1][0]))
+      .filter(lambda x: x[1][1][:3] == "200") \
+      .map(lambda x: (x[1][0], int(x[0]))) \
+      .reduceByKey(add).sortBy(lambda x: -x[1])
 
     wordCount.saveAsTextFile(sys.argv[2])
     '''similar = defaultdict(int)
